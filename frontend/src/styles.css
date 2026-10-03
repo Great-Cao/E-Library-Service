@@ -1,0 +1,259 @@
+:root {
+  --color-text: #1f2933;
+  --color-muted: #6b7280;
+  --color-border: #e3e8ee;
+  --color-accent: #1f5f8b;
+  --color-success: #1b7f5a;
+  --color-error: #b3261e;
+  --color-surface: #ffffff;
+  --color-bg: #f5f7fa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 12px 24px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 17px;
+}
+
+.brand-sub {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+.nav {
+  display: flex;
+  gap: 16px;
+}
+
+.nav a.router-link-active {
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.user-switcher {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.user-switcher select {
+  padding: 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.page-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+h1 {
+  font-size: 22px;
+  margin: 0 0 4px;
+}
+
+.muted {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.state {
+  padding: 24px 0;
+  color: var(--color-muted);
+}
+
+.mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+}
+
+.data-table {
+  width: 100%;
+  margin-top: 16px;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.data-table th {
+  font-size: 13px;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.right {
+  text-align: right;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.pill-in {
+  background: #e6f4ee;
+  color: var(--color-success);
+}
+
+.pill-out {
+  background: #fdecea;
+  color: var(--color-error);
+}
+
+.card {
+  margin-top: 16px;
+  padding: 20px 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 6px 16px;
+  margin: 16px 0 20px;
+}
+
+.details dt {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.details dd {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.primary {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pager button {
+  padding: 5px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+
+.pager-status {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  font-size: 14px;
+}
+
+.banner-error {
+  background: #fdecea;
+  color: var(--color-error);
+}
+
+.banner-success {
+  background: #e6f4ee;
+  color: var(--color-success);
+}
+
+.banner-code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.banner-close {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+}
+
+.breadcrumb {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
