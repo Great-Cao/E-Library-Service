@@ -5,10 +5,14 @@ import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingPathVariableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -18,6 +22,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Translates every exception into the documented error envelope. Nothing about
@@ -65,11 +70,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({
             MethodArgumentTypeMismatchException.class,
             MissingServletRequestParameterException.class,
+            MissingPathVariableException.class,
             HttpMessageNotReadableException.class
     })
     public ResponseEntity<ErrorResponse> handleBadRequest(Exception ex) {
         List<ErrorResponse.FieldViolation> details = List.of(
-                new ErrorResponse.FieldViolation(field(ex), ex.getMessage()));
+                new ErrorResponse.FieldViolation(field(ex), reason(ex)));
         return validationError(details);
     }
 
@@ -138,20 +144,49 @@ public class GlobalExceptionHandler {
         if (ex instanceof MissingServletRequestParameterException missing) {
             return missing.getParameterName();
         }
+        if (ex instanceof MissingPathVariableException missing) {
+            return missing.getVariableName();
+        }
         if (ex instanceof MethodArgumentTypeMismatchException mismatch) {
             return mismatch.getName();
         }
         return "request";
     }
 
+    /**
+     * Builds a client-facing reason without echoing the framework message, which
+     * would leak internal Java type names and the raw input value.
+     */
+    private String reason(Exception ex) {
+        if (ex instanceof MissingServletRequestParameterException) {
+            return "is required";
+        }
+        if (ex instanceof MissingPathVariableException) {
+            return "must not be blank";
+        }
+        if (ex instanceof MethodArgumentTypeMismatchException mismatch) {
+            Class<?> requiredType = mismatch.getRequiredType();
+            return "must be a valid " + (requiredType == null ? "value" : requiredType.getSimpleName());
+        }
+        return "is malformed";
+    }
+
     private boolean isDatabaseBusy(Throwable ex) {
         for (Throwable current = ex; current != null; current = current.getCause()) {
+            if (current instanceof PessimisticLockingFailureException
+                    || current instanceof CannotGetJdbcConnectionException
+                    || current instanceof QueryTimeoutException) {
+                return true;
+            }
             String message = current.getMessage();
             if (message == null) {
                 continue;
             }
-            String normalized = message.toUpperCase();
-            if (normalized.contains("SQLITE_BUSY") || normalized.contains("DATABASE IS LOCKED")) {
+            String normalized = message.toUpperCase(Locale.ROOT);
+            if (normalized.contains("SQLITE_BUSY")
+                    || normalized.contains("SQLITE_LOCKED")
+                    || normalized.contains("DATABASE IS LOCKED")
+                    || normalized.contains("DATABASE TABLE IS LOCKED")) {
                 return true;
             }
         }

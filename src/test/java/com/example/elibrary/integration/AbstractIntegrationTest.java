@@ -31,7 +31,10 @@ import java.sql.SQLException;
 @ActiveProfiles("test")
 abstract class AbstractIntegrationTest {
 
-    private static final Path TEST_DB = Path.of("target", "e-library-it.db");
+    // One database file per JVM: two test runs in the same workspace (say IDE plus
+    // command line) would otherwise fight over a single file and fail on Windows.
+    private static final Path TEST_DB = Path.of("target",
+            "e-library-it-" + ProcessHandle.current().pid() + ".db");
     private static final String SEED_SCRIPT = "db/migration/R__seed_demo_data.sql";
     private static final String BORROWED_AT = "2026-01-01T00:00:00Z";
 

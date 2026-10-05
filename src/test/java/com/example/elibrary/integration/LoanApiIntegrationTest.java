@@ -73,6 +73,8 @@ class LoanApiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error.code").value("BOOK_UNAVAILABLE"));
         assertEquals(0, availableCopies(6));
+        // A rejected borrow must not leave a partially applied loan behind.
+        assertEquals(0, openLoanCount(6));
     }
 
     @Test
@@ -113,6 +115,15 @@ class LoanApiIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/v1/users/me/loans").header(USER_HEADER, "999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error.code").value("USER_NOT_FOUND"));
+    }
+
+    @Test
+    void oversizedPageNumberReturns400InsteadOf500() throws Exception {
+        mockMvc.perform(get("/api/v1/users/me/loans")
+                        .param("page", "21474837").param("size", "100")
+                        .header(USER_HEADER, "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -171,6 +182,15 @@ class LoanApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void returningLoanAsUnknownUserReturns404() throws Exception {
+        long loanId = borrow(1, 1);
+
+        mockMvc.perform(post("/api/v1/loans/" + loanId + "/return").header(USER_HEADER, "999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("USER_NOT_FOUND"));
+    }
+
+    @Test
     void foreignKeyConstraintIsEnforcedBySqlite() {
         // SQLite reports constraint violations with a null SQL state, so Spring
         // surfaces them as a generic DataAccessException rather than a subclass.
@@ -190,6 +210,14 @@ class LoanApiIntegrationTest extends AbstractIntegrationTest {
         assertThrows(DataAccessException.class, () -> jdbcTemplate.update("""
                 INSERT INTO books (title, author, isbn, description, total_copies, available_copies, created_at)
                 VALUES ('Duplicate', 'Author', '9780132350884', NULL, 1, 1, '2026-01-01T00:00:00Z')
+                """));
+    }
+
+    @Test
+    void notNullConstraintIsEnforcedBySqlite() {
+        assertThrows(DataAccessException.class, () -> jdbcTemplate.update("""
+                INSERT INTO books (title, author, isbn, description, total_copies, available_copies, created_at)
+                VALUES (NULL, 'Author', 'isbn-not-null-test', NULL, 1, 1, '2026-01-01T00:00:00Z')
                 """));
     }
 

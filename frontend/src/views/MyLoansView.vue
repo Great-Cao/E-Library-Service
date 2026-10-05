@@ -14,17 +14,39 @@ const items = ref([])
 const totalPages = ref(0)
 const loading = ref(false)
 const returningId = ref(null)
+const failed = ref(false)
+// Guards against out-of-order responses: only the newest request may write state.
+let latestRequest = 0
 
 async function load() {
+  const requestId = ++latestRequest
   loading.value = true
   try {
-    const data = await api.currentLoans(page.value, PAGE_SIZE)
+    let data = await api.currentLoans(page.value, PAGE_SIZE)
+    if (requestId !== latestRequest) {
+      return
+    }
+    // Returning the only row of the last page would leave that page empty, so step
+    // back to the last page that still has content.
+    if (page.value > 0 && data.totalPages > 0 && page.value >= data.totalPages) {
+      page.value = data.totalPages - 1
+      data = await api.currentLoans(page.value, PAGE_SIZE)
+      if (requestId !== latestRequest) {
+        return
+      }
+    }
     items.value = data.items
     totalPages.value = data.totalPages
+    failed.value = false
   } catch (error) {
-    notifyError(error)
+    if (requestId === latestRequest) {
+      failed.value = true
+      notifyError(error)
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestRequest) {
+      loading.value = false
+    }
   }
 }
 
@@ -36,6 +58,8 @@ async function giveBack(loan) {
     await load()
   } catch (error) {
     notifyError(error)
+    // The row may be stale (another tab already returned it), so refresh the list.
+    await load()
   } finally {
     returningId.value = null
   }
@@ -57,6 +81,10 @@ onMounted(load)
     </div>
 
     <p v-if="loading" class="state">加载中…</p>
+    <div v-else-if="failed" class="state">
+      <p>加载失败，请稍后重试。</p>
+      <button type="button" class="primary" @click="load">重试</button>
+    </div>
     <p v-else-if="items.length === 0" class="state">当前没有未归还的书籍。</p>
 
     <table v-else class="data-table">
@@ -89,6 +117,6 @@ onMounted(load)
       </tbody>
     </table>
 
-    <Pager :page="page" :total-pages="totalPages" @change="changePage" />
+    <Pager :page="page" :total-pages="totalPages" :busy="loading" @change="changePage" />
   </section>
 </template>

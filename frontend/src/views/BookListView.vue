@@ -12,18 +12,31 @@ const items = ref([])
 const totalElements = ref(0)
 const totalPages = ref(0)
 const loading = ref(false)
+const failed = ref(false)
+// Guards against out-of-order responses: only the newest request may write state.
+let latestRequest = 0
 
 async function load() {
+  const requestId = ++latestRequest
   loading.value = true
   try {
     const data = await api.listBooks(page.value, PAGE_SIZE)
+    if (requestId !== latestRequest) {
+      return
+    }
     items.value = data.items
     totalElements.value = data.totalElements
     totalPages.value = data.totalPages
+    failed.value = false
   } catch (error) {
-    notifyError(error)
+    if (requestId === latestRequest) {
+      failed.value = true
+      notifyError(error)
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestRequest) {
+      loading.value = false
+    }
   }
 }
 
@@ -43,6 +56,10 @@ onMounted(load)
     </div>
 
     <p v-if="loading" class="state">加载中…</p>
+    <div v-else-if="failed" class="state">
+      <p>加载失败，请稍后重试。</p>
+      <button type="button" class="primary" @click="load">重试</button>
+    </div>
     <p v-else-if="items.length === 0" class="state">暂无书籍。</p>
 
     <table v-else class="data-table">
@@ -70,6 +87,6 @@ onMounted(load)
       </tbody>
     </table>
 
-    <Pager :page="page" :total-pages="totalPages" @change="changePage" />
+    <Pager :page="page" :total-pages="totalPages" :busy="loading" @change="changePage" />
   </section>
 </template>

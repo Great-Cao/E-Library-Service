@@ -1,14 +1,14 @@
 import { getCurrentUserId } from '../stores/currentUser'
 
 const BASE_PATH = '/api/v1'
+const TIMEOUT_MS = 10000
 
 /** An error carrying the backend's error code, so views can react to it. */
 export class ApiError extends Error {
-  constructor(code, message, status) {
+  constructor(code, message) {
     super(message)
     this.name = 'ApiError'
     this.code = code
-    this.status = status
   }
 }
 
@@ -21,17 +21,23 @@ async function request(path, options = {}) {
   }
 
   let response
+  let raw
   try {
-    response = await fetch(BASE_PATH + path, { ...options, headers })
+    response = await fetch(BASE_PATH + path, {
+      ...options,
+      headers,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    // Read the body inside the try so a stalled or broken response also becomes
+    // a clean ApiError instead of a raw fetch/TypeError leaking to the view.
+    raw = await response.text()
   } catch {
     throw new ApiError(
       'NETWORK_ERROR',
-      '无法连接后端服务，请确认后端已在 http://localhost:8080 启动。',
-      0,
+      '请求超时或无法连接后端，请确认后端已在 http://localhost:8080 启动。',
     )
   }
 
-  const raw = await response.text()
   let body = null
   if (raw) {
     try {
@@ -47,7 +53,6 @@ async function request(path, options = {}) {
     throw new ApiError(
       error?.code ?? 'UNKNOWN_ERROR',
       error?.message ?? `请求失败（HTTP ${response.status}）`,
-      response.status,
     )
   }
 

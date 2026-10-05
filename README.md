@@ -21,9 +21,10 @@ The five required features are implemented end to end:
 | Current loans | `GET /api/v1/users/me/loans` |
 
 Deliberately out of scope: registration/login/OAuth, roles, due dates and fines,
-reservations, e-book file storage, a front end, and book/user management
-endpoints. Books and users come from seeded demo data, so the service is useful
-immediately after `mvn spring-boot:run` without any setup.
+reservations, e-book file storage, a production-grade front end, and book/user
+management endpoints. A small *demo* UI is included under `frontend/` as an extra
+deliverable — see "Demo front end" below. Books and users come from seeded demo
+data, so the service is useful immediately after `mvn spring-boot:run`.
 
 ## Tech stack
 
@@ -85,8 +86,9 @@ needs no CORS configuration. Use the switcher in the top bar to act as either
 demo user.
 
 The UI covers the book list with paging, book details, borrow, my loans, return,
-and a shared banner that renders the backend's `error.code` / `error.message`
-(for example "暂无库存" when borrowing the out-of-stock book 6).
+and a shared banner that renders the backend's `error.code` / `error.message`.
+The out-of-stock book 6 disables the borrow button on its detail page; if the stock
+runs out after the page has loaded, the resulting 409 is shown in the banner.
 
 **Optional single-jar delivery.** To serve the UI from Spring Boot instead of the
 dev server:
@@ -310,19 +312,19 @@ mvn clean test        # unit + integration tests (uses its own SQLite file)
 mvn clean package     # runs tests and builds the executable jar
 ```
 
-The suite covers the service rules with Mockito (44 tests overall) and the HTTP
-contract with MockMvc against a real SQLite database, including:
+The suite has two layers — Mockito unit tests for the service rules, and MockMvc
+integration tests against a real SQLite database — covering:
 
 - browsing, detail and pagination validation;
-- borrow/return happy paths and every documented error code;
+- borrow/return happy paths and every documented error code — the client-triggerable ones end to end over HTTP, and the 503 / 500 mappings at the handler level;
 - the stock invariant (`0 <= availableCopies <= totalCopies`) after borrows and returns;
 - repeat returns not restoring stock twice;
 - `NOT NULL`, `UNIQUE(isbn)`, `CHECK` and foreign-key constraints being enforced by SQLite;
 - a deterministic concurrency test: 8 borrowers race for 2 copies and exactly 2 succeed;
 - the OpenAPI document and Swagger UI being reachable.
 
-Tests never touch `data/library.db`; they use `target/e-library-it.db`, which is
-rebuilt from the migrations.
+Tests never touch `data/library.db`; each JVM gets its own database file under
+`target/` (`e-library-it-<pid>.db`), rebuilt from the migrations.
 
 ## Project structure
 

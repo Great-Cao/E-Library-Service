@@ -2,6 +2,8 @@ package com.example.elibrary.integration;
 
 import org.junit.jupiter.api.Test;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -86,5 +88,36 @@ class BookApiIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(delete("/api/v1/books/1"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.error.code").value("METHOD_NOT_ALLOWED"));
+    }
+
+    @Test
+    void oversizedPageNumberReturns400InsteadOf500() throws Exception {
+        // page * size must stay inside the int range used for the SQL offset.
+        mockMvc.perform(get("/api/v1/books").param("page", "21474837").param("size", "100"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void blankBookIdReturns400InsteadOf500() throws Exception {
+        // Tomcat decodes %20 to a space before Spring matches the route, so the path
+        // variable ends up blank. MockMvc performs no such decoding, so the decoded
+        // URI is supplied explicitly to reproduce what a real request hits.
+        mockMvc.perform(get("/api/v1/books").with(request -> {
+                    request.setRequestURI("/api/v1/books/ ");
+                    request.setServletPath("/api/v1/books/ ");
+                    return request;
+                }))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void invalidBookIdDoesNotLeakInternalTypeNames() throws Exception {
+        mockMvc.perform(get("/api/v1/books/abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.error.message", not(containsString("java."))))
+                .andExpect(jsonPath("$.error.details[0].reason", not(containsString("java."))));
     }
 }

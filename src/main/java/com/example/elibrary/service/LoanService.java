@@ -25,7 +25,6 @@ import java.util.List;
 public class LoanService {
 
     private static final String ACTIVE_STATUS = "active";
-    private static final String USER_HEADER = "X-User-Id";
 
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
@@ -75,6 +74,10 @@ public class LoanService {
      */
     @Transactional
     public LoanResponse returnLoan(Long loanId, Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new ApiException(ErrorCode.USER_NOT_FOUND, "User " + userId + " does not exist.");
+        }
+
         Loan loan = loanRepository.findById(loanId)
                 .orElseThrow(() -> new ApiException(ErrorCode.LOAN_NOT_FOUND,
                         "Loan " + loanId + " does not exist."));

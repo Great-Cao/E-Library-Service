@@ -1,7 +1,8 @@
 spring:
   datasource:
-    # A dedicated test database file; the dev database in data/ is never touched.
-    url: jdbc:sqlite:target/test-db/e-library-test.db?foreign_keys=true&busy_timeout=5000
+    # Fallback only. AbstractIntegrationTest overrides this with a per-JVM file under
+    # target/, so parallel test runs never share (or delete) the same database file.
+    url: jdbc:sqlite:target/e-library-it.db?foreign_keys=true&busy_timeout=5000
     driver-class-name: org.sqlite.JDBC
     hikari:
       pool-name: elibrary-test-pool
@@ -14,7 +15,3 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-
-logging:
-  level:
-    org.hibernate.SQL: warn

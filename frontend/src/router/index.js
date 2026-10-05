@@ -12,6 +12,8 @@ const router = createRouter({
     { path: '/', name: 'books', component: BookListView },
     { path: '/books/:id', name: 'book-detail', component: BookDetailView },
     { path: '/me/loans', name: 'my-loans', component: MyLoansView },
+    // Unknown hash routes would otherwise render an empty page.
+    { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })
 

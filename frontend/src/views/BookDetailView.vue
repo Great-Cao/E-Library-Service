@@ -10,14 +10,21 @@ const route = useRoute()
 const book = ref(null)
 const loading = ref(false)
 const borrowing = ref(false)
+const notFound = ref(false)
+const failed = ref(false)
 
 async function load() {
   loading.value = true
   try {
     book.value = await api.getBook(route.params.id)
+    notFound.value = false
+    failed.value = false
   } catch (error) {
-    notifyError(error)
     book.value = null
+    // A missing book is a normal outcome; anything else is a failure worth retrying.
+    notFound.value = error?.code === 'BOOK_NOT_FOUND'
+    failed.value = !notFound.value
+    notifyError(error)
   } finally {
     loading.value = false
   }
@@ -44,9 +51,13 @@ onMounted(load)
     <p class="breadcrumb"><RouterLink to="/">← 返回书籍列表</RouterLink></p>
 
     <p v-if="loading" class="state">加载中…</p>
-    <p v-else-if="!book" class="state">未找到该书籍。</p>
+    <p v-else-if="notFound" class="state">未找到该书籍。</p>
+    <div v-else-if="failed" class="state">
+      <p>加载失败，请稍后重试。</p>
+      <button type="button" class="primary" @click="load">重试</button>
+    </div>
 
-    <article v-else class="card">
+    <article v-else-if="book" class="card">
       <h1>{{ book.title }}</h1>
       <p class="muted">{{ book.author }}</p>
 

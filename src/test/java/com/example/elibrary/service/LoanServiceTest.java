@@ -16,8 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -41,11 +39,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class LoanServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-02-01T10:00:00Z");
     private static final Instant BORROWED_AT = Instant.parse("2026-01-10T09:00:00Z");
+    private static final long ALICE = 1L;
+    private static final long BRIAN = 2L;
 
     @Mock
     private BookRepository bookRepository;
@@ -68,14 +67,14 @@ class LoanServiceTest {
 
     @Test
     void borrowDecrementsStockAndCreatesLoan() {
-        when(userRepository.existsById(1L)).thenReturn(true);
+        when(userRepository.existsById(ALICE)).thenReturn(true);
         when(bookRepository.existsById(1L)).thenReturn(true);
         when(bookRepository.decrementAvailableCopies(1L)).thenReturn(1);
 
-        Book book = book(1L);
-        User user = user(1L);
+        Book book = bookWithId(1L);
+        User user = userWithId(ALICE);
         when(bookRepository.getReferenceById(1L)).thenReturn(book);
-        when(userRepository.getReferenceById(1L)).thenReturn(user);
+        when(userRepository.getReferenceById(ALICE)).thenReturn(user);
 
         Loan saved = mock(Loan.class);
         when(saved.getId()).thenReturn(100L);
@@ -84,11 +83,11 @@ class LoanServiceTest {
         when(saved.getBorrowedAt()).thenReturn(NOW);
         when(loanRepository.saveAndFlush(any(Loan.class))).thenReturn(saved);
 
-        LoanResponse response = loanService.borrow(1L, 1L);
+        LoanResponse response = loanService.borrow(1L, ALICE);
 
         assertEquals(100L, response.id().longValue());
         assertEquals(1L, response.bookId().longValue());
-        assertEquals(1L, response.userId().longValue());
+        assertEquals(ALICE, response.userId().longValue());
         assertEquals(NOW, response.borrowedAt());
         assertNull(response.returnedAt());
     }
@@ -105,10 +104,10 @@ class LoanServiceTest {
 
     @Test
     void borrowRejectsUnknownBook() {
-        when(userRepository.existsById(1L)).thenReturn(true);
+        when(userRepository.existsById(ALICE)).thenReturn(true);
         when(bookRepository.existsById(9L)).thenReturn(false);
 
-        ApiException ex = assertThrows(ApiException.class, () -> loanService.borrow(9L, 1L));
+        ApiException ex = assertThrows(ApiException.class, () -> loanService.borrow(9L, ALICE));
 
         assertEquals(ErrorCode.BOOK_NOT_FOUND, ex.errorCode());
         verify(bookRepository, never()).decrementAvailableCopies(anyLong());
@@ -116,11 +115,11 @@ class LoanServiceTest {
 
     @Test
     void borrowRejectsWhenNoCopyIsAvailable() {
-        when(userRepository.existsById(1L)).thenReturn(true);
+        when(userRepository.existsById(ALICE)).thenReturn(true);
         when(bookRepository.existsById(1L)).thenReturn(true);
         when(bookRepository.decrementAvailableCopies(1L)).thenReturn(0);
 
-        ApiException ex = assertThrows(ApiException.class, () -> loanService.borrow(1L, 1L));
+        ApiException ex = assertThrows(ApiException.class, () -> loanService.borrow(1L, ALICE));
 
         assertEquals(ErrorCode.BOOK_UNAVAILABLE, ex.errorCode());
         verify(loanRepository, never()).saveAndFlush(any(Loan.class));
@@ -130,12 +129,13 @@ class LoanServiceTest {
 
     @Test
     void returnMarksLoanReturnedAndRestoresStock() {
-        Loan loan = openLoan(100L, 1L, 1L);
+        when(userRepository.existsById(ALICE)).thenReturn(true);
+        Loan loan = openLoan(1L, ALICE);
         when(loanRepository.findById(100L)).thenReturn(Optional.of(loan));
         when(loanRepository.markReturned(eq(100L), any(Instant.class))).thenReturn(1);
         when(bookRepository.incrementAvailableCopies(1L)).thenReturn(1);
 
-        LoanResponse response = loanService.returnLoan(100L, 1L);
+        LoanResponse response = loanService.returnLoan(100L, ALICE);
 
         assertEquals(100L, response.id().longValue());
         assertEquals(BORROWED_AT, response.borrowedAt());
@@ -144,20 +144,34 @@ class LoanServiceTest {
     }
 
     @Test
+    void returnRejectsUnknownUser() {
+        when(userRepository.existsById(9L)).thenReturn(false);
+
+        ApiException ex = assertThrows(ApiException.class, () -> loanService.returnLoan(100L, 9L));
+
+        assertEquals(ErrorCode.USER_NOT_FOUND, ex.errorCode());
+        verify(loanRepository, never()).findById(anyLong());
+    }
+
+    @Test
     void returnRejectsUnknownLoan() {
+        when(userRepository.existsById(ALICE)).thenReturn(true);
         when(loanRepository.findById(404L)).thenReturn(Optional.empty());
 
-        ApiException ex = assertThrows(ApiException.class, () -> loanService.returnLoan(404L, 1L));
+        ApiException ex = assertThrows(ApiException.class, () -> loanService.returnLoan(404L, ALICE));
 
         assertEquals(ErrorCode.LOAN_NOT_FOUND, ex.errorCode());
     }
 
     @Test
     void returnRejectsLoanOwnedByAnotherUser() {
-        Loan loan = openLoan(100L, 1L, 2L);
+        when(userRepository.existsById(ALICE)).thenReturn(true);
+        User owner = userWithId(BRIAN);
+        Loan loan = mock(Loan.class);
+        when(loan.getUser()).thenReturn(owner);
         when(loanRepository.findById(100L)).thenReturn(Optional.of(loan));
 
-        ApiException ex = assertThrows(ApiException.class, () -> loanService.returnLoan(100L, 1L));
+        ApiException ex = assertThrows(ApiException.class, () -> loanService.returnLoan(100L, ALICE));
 
         assertEquals(ErrorCode.FORBIDDEN, ex.errorCode());
         verify(loanRepository, never()).markReturned(anyLong(), any(Instant.class));
@@ -166,11 +180,12 @@ class LoanServiceTest {
 
     @Test
     void returnRejectsAlreadyReturnedLoanWithoutRestoringStockAgain() {
-        Loan loan = openLoan(100L, 1L, 1L);
+        when(userRepository.existsById(ALICE)).thenReturn(true);
+        Loan loan = openLoan(1L, ALICE);
         when(loanRepository.findById(100L)).thenReturn(Optional.of(loan));
         when(loanRepository.markReturned(eq(100L), any(Instant.class))).thenReturn(0);
 
-        ApiException ex = assertThrows(ApiException.class, () -> loanService.returnLoan(100L, 1L));
+        ApiException ex = assertThrows(ApiException.class, () -> loanService.returnLoan(100L, ALICE));
 
         assertEquals(ErrorCode.LOAN_ALREADY_RETURNED, ex.errorCode());
         verify(bookRepository, never()).incrementAvailableCopies(anyLong());
@@ -180,12 +195,21 @@ class LoanServiceTest {
 
     @Test
     void currentLoansMapsActiveLoansWithBookDetails() {
-        when(userRepository.existsById(1L)).thenReturn(true);
-        Loan loan = openLoan(100L, 1L, 1L);
-        Page<Loan> page = new PageImpl<>(List.of(loan), PageRequest.of(0, 20), 1);
-        when(loanRepository.findActiveLoans(eq(1L), any(Pageable.class))).thenReturn(page);
+        when(userRepository.existsById(ALICE)).thenReturn(true);
 
-        PageResponse<ActiveLoanResponse> response = loanService.currentLoans(1L, "active", 0, 20);
+        Book book = mock(Book.class);
+        when(book.getId()).thenReturn(1L);
+        when(book.getTitle()).thenReturn("Clean Code");
+        when(book.getAuthor()).thenReturn("Robert C. Martin");
+        Loan loan = mock(Loan.class);
+        when(loan.getId()).thenReturn(100L);
+        when(loan.getBook()).thenReturn(book);
+        when(loan.getBorrowedAt()).thenReturn(BORROWED_AT);
+
+        Page<Loan> page = new PageImpl<>(List.of(loan), PageRequest.of(0, 20), 1);
+        when(loanRepository.findActiveLoans(eq(ALICE), any(Pageable.class))).thenReturn(page);
+
+        PageResponse<ActiveLoanResponse> response = loanService.currentLoans(ALICE, "active", 0, 20);
 
         assertEquals(1, response.items().size());
         assertEquals(1L, response.items().get(0).bookId().longValue());
@@ -196,7 +220,7 @@ class LoanServiceTest {
     @Test
     void currentLoansRejectsUnsupportedStatus() {
         ApiException ex = assertThrows(ApiException.class,
-                () -> loanService.currentLoans(1L, "returned", 0, 20));
+                () -> loanService.currentLoans(ALICE, "returned", 0, 20));
 
         assertEquals(ErrorCode.VALIDATION_ERROR, ex.errorCode());
         verify(userRepository, never()).existsById(anyLong());
@@ -212,26 +236,23 @@ class LoanServiceTest {
         assertEquals(ErrorCode.USER_NOT_FOUND, ex.errorCode());
     }
 
-    private Book book(long id) {
+    private Book bookWithId(long id) {
         Book book = mock(Book.class);
         when(book.getId()).thenReturn(id);
-        when(book.getTitle()).thenReturn("Clean Code");
-        when(book.getAuthor()).thenReturn("Robert C. Martin");
         return book;
     }
 
-    private User user(long id) {
+    private User userWithId(long id) {
         User user = mock(User.class);
         when(user.getId()).thenReturn(id);
         return user;
     }
 
-    /** A loan that is still open, owned by {@code ownerId} for book {@code bookId}. */
-    private Loan openLoan(long loanId, long bookId, long ownerId) {
-        Book book = book(bookId);
-        User user = user(ownerId);
+    /** An open loan; only the fields returnLoan() reads are stubbed. */
+    private Loan openLoan(long bookId, long ownerId) {
+        Book book = bookWithId(bookId);
+        User user = userWithId(ownerId);
         Loan loan = mock(Loan.class);
-        when(loan.getId()).thenReturn(loanId);
         when(loan.getBook()).thenReturn(book);
         when(loan.getUser()).thenReturn(user);
         when(loan.getBorrowedAt()).thenReturn(BORROWED_AT);
